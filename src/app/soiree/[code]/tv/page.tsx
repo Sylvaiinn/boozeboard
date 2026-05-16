@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC } from "@/lib/utils";
-import type { Party, Participant, Drink, DrinkLog } from "@/types/database";
+import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ParticipantStats {
   participant: Participant;
@@ -13,12 +15,16 @@ interface ParticipantStats {
   totalUnits: number;
   totalGrams: number;
   bac: number | null;
+  vomitCount: number;
 }
+
+// ─── Compute ──────────────────────────────────────────────────────────────────
 
 function computeStats(
   participants: Participant[],
   drinksMap: Map<string, Drink>,
-  logs: DrinkLog[]
+  logs: DrinkLog[],
+  vomitLogs: VomitLog[]
 ): ParticipantStats[] {
   const now = Date.now();
   return participants
@@ -34,24 +40,19 @@ function computeStats(
       }
       let bac: number | null = null;
       if (p.weight_kg && p.sex && pLogs.length > 0) {
-        const firstLog = [...pLogs].sort((a, b) =>
+        const first = [...pLogs].sort((a, b) =>
           (a.logged_at ?? "") < (b.logged_at ?? "") ? -1 : 1
         )[0];
-        const hours = (now - new Date(firstLog.logged_at ?? now).getTime()) / 3_600_000;
+        const hours = (now - new Date(first.logged_at ?? now).getTime()) / 3_600_000;
         bac = calculateBAC(totalGrams, p.weight_kg, p.sex as "M" | "F" | "other", hours);
       }
-      return { participant: p, totalDrinks: pLogs.length, totalUnits, totalGrams, bac };
+      const vomitCount = vomitLogs.filter((v) => v.participant_id === p.id).length;
+      return { participant: p, totalDrinks: pLogs.length, totalUnits, totalGrams, bac, vomitCount };
     })
     .sort((a, b) => b.totalUnits - a.totalUnits || b.totalDrinks - a.totalDrinks);
 }
 
-const MEDALS = ["🥇", "🥈", "🥉"];
-
-const ROW_STYLES = [
-  "border-yellow-400/40 bg-yellow-400/10 shadow-yellow-900/30",
-  "border-zinc-400/40 bg-zinc-400/10 shadow-zinc-700/30",
-  "border-amber-700/40 bg-amber-800/10 shadow-amber-900/30",
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function bacColor(bac: number) {
   if (bac < 0.2) return "#4ade80";
@@ -60,39 +61,170 @@ function bacColor(bac: number) {
   return "#f87171";
 }
 
-// Bar showing drink count relative to leader
-function DrinkBar({ value, max }: { value: number; max: number }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+// ─── Podium ───────────────────────────────────────────────────────────────────
+
+interface PodiumSlotProps {
+  stats: ParticipantStats;
+  rank: 1 | 2 | 3;
+}
+
+function PodiumSlot({ stats: s, rank }: PodiumSlotProps) {
+  const isFirst = rank === 1;
+  const heights = { 1: "h-24", 2: "h-16", 3: "h-12" };
+  const avatarSizes = { 1: "w-24 h-24 text-6xl", 2: "w-18 h-18 text-5xl", 3: "w-16 h-16 text-4xl" };
+  const nameSizes = { 1: "text-2xl", 2: "text-xl", 3: "text-lg" };
+  const scoreColors = { 1: "text-amber-300", 2: "text-zinc-300", 3: "text-amber-700/80" };
+  const podiumColors = {
+    1: "bg-gradient-to-b from-amber-400/30 to-amber-600/10 border-amber-400/40",
+    2: "bg-gradient-to-b from-zinc-400/20 to-zinc-600/10 border-zinc-400/30",
+    3: "bg-gradient-to-b from-amber-800/20 to-amber-900/10 border-amber-800/30",
+  };
+  const glowColors = {
+    1: "shadow-[0_0_40px_rgba(251,191,36,0.25)]",
+    2: "shadow-[0_0_20px_rgba(161,161,170,0.15)]",
+    3: "shadow-[0_0_20px_rgba(180,83,9,0.15)]",
+  };
+
   return (
-    <div className="flex-1 h-3 bg-white/10 rounded-full overflow-hidden">
-      <motion.div
-        className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-300"
-        initial={{ width: 0 }}
-        animate={{ width: `${pct}%` }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      />
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`flex flex-col items-center gap-3 ${isFirst ? "mt-0" : "mt-8"}`}
+    >
+      {/* Crown for #1 */}
+      {isFirst && (
+        <motion.div
+          animate={{ y: [0, -4, 0] }}
+          transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+          className="text-4xl"
+        >
+          👑
+        </motion.div>
+      )}
+
+      {/* Avatar */}
+      <div className={`
+        ${avatarSizes[rank]} rounded-full flex items-center justify-center
+        border-2 backdrop-blur-sm
+        ${podiumColors[rank]} ${glowColors[rank]}
+      `}>
+        {s.participant.emoji ?? "🍺"}
+      </div>
+
+      {/* Name + score */}
+      <div className="text-center space-y-1">
+        <p className={`font-black text-white leading-tight ${nameSizes[rank]} drop-shadow`}>
+          {s.participant.name}
+        </p>
+        <p className={`font-black ${scoreColors[rank]} ${isFirst ? "text-3xl" : "text-2xl"}`}>
+          {s.totalUnits.toFixed(1)}
+          <span className="text-sm font-normal text-white/40 ml-1">u</span>
+        </p>
+        <div className="flex items-center justify-center gap-2 text-white/40 text-sm">
+          <span>🍺 {s.totalDrinks}</span>
+          {s.vomitCount > 0 && <span className="text-red-400">🤮 {s.vomitCount}</span>}
+          {s.bac !== null && (
+            <span style={{ color: bacColor(s.bac) }}>{s.bac.toFixed(2)} g/L</span>
+          )}
+        </div>
+      </div>
+
+      {/* Podium block */}
+      <div className={`
+        w-full ${heights[rank]} rounded-t-2xl border backdrop-blur-sm
+        ${podiumColors[rank]} ${glowColors[rank]}
+        flex items-center justify-center
+      `}>
+        <span className="font-black text-white/30 text-4xl">#{rank}</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── VomitStrip ───────────────────────────────────────────────────────────────
+
+interface VomitEntry {
+  log: VomitLog;
+  participant: Participant;
+}
+
+function VomitStrip({ entries }: { entries: VomitEntry[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="border-t border-white/10 px-8 py-3 flex items-center gap-4 overflow-x-hidden">
+      <div className="flex-shrink-0 flex items-center gap-2">
+        <span className="text-xl">🤮</span>
+        <span className="text-white/30 text-xs font-bold uppercase tracking-widest">Hall of Shame</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto">
+        {entries.map((e) => (
+          <motion.div
+            key={e.log.id}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex-shrink-0 flex items-center gap-2 bg-red-950/40 border border-red-900/40 rounded-xl px-3 py-2"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={e.log.photo_url}
+              alt="Preuve"
+              className="w-12 h-12 rounded-lg object-cover border border-red-900/60"
+            />
+            <div>
+              <p className="text-white/80 text-sm font-bold leading-tight">{e.participant.name}</p>
+              <p className="text-red-400/70 text-xs">
+                {new Date(e.log.logged_at ?? "").toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
     </div>
   );
 }
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TvPage() {
   const { code } = useParams<{ code: string }>();
   const [party, setParty] = useState<Party | null>(null);
   const [stats, setStats] = useState<ParticipantStats[]>([]);
+  const [vomitEntries, setVomitEntries] = useState<VomitEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [pulse, setPulse] = useState(false);
+  const [clock, setClock] = useState("");
+
   const participantIds = useRef<string[]>([]);
   const drinksMapRef = useRef<Map<string, Drink>>(new Map());
   const participantsRef = useRef<Participant[]>([]);
 
-  const reloadLogs = useCallback(async () => {
+  // Clock
+  useEffect(() => {
+    function tick() {
+      setClock(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+    }
+    tick();
+    const id = setInterval(tick, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const reloadAll = useCallback(async () => {
     if (!participantIds.current.length) return;
-    const { data } = await supabase
-      .from("drink_logs")
-      .select("*")
-      .in("participant_id", participantIds.current)
-      .order("logged_at");
-    setStats(computeStats(participantsRef.current, drinksMapRef.current, data ?? []));
+    const ids = participantIds.current;
+    const [{ data: drinkData }, { data: vomitData }] = await Promise.all([
+      supabase.from("drink_logs").select("*").in("participant_id", ids).order("logged_at"),
+      supabase.from("vomit_logs").select("*").in("participant_id", ids).order("logged_at"),
+    ]);
+    const vomits = vomitData ?? [];
+    setStats(computeStats(participantsRef.current, drinksMapRef.current, drinkData ?? [], vomits));
+    // Build VomitEntry[]
+    const participantMap = new Map(participantsRef.current.map((p) => [p.id, p]));
+    setVomitEntries(
+      vomits
+        .map((v) => ({ log: v, participant: participantMap.get(v.participant_id)! }))
+        .filter((e) => e.participant)
+    );
     setPulse(true);
     setTimeout(() => setPulse(false), 600);
   }, []);
@@ -115,185 +247,227 @@ export default function TvPage() {
       participantsRef.current = parts ?? [];
       participantIds.current = (parts ?? []).map((p) => p.id);
 
-      if (participantIds.current.length) {
-        const { data: logs } = await supabase
-          .from("drink_logs").select("*")
-          .in("participant_id", participantIds.current).order("logged_at");
-        setStats(computeStats(parts ?? [], map, logs ?? []));
-      }
+      if (participantIds.current.length) await reloadAll();
       setLoading(false);
     }
     load();
-  }, [code]);
+  }, [code, reloadAll]);
 
   useEffect(() => {
     if (!party) return;
     const channel = supabase
-      .channel(`tv-${party.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "drink_logs" }, reloadLogs)
+      .channel(`tv2-${party.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "drink_logs" }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vomit_logs" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, async () => {
         const { data } = await supabase
           .from("participants").select("*").eq("party_id", party.id).order("joined_at");
         participantsRef.current = data ?? [];
         participantIds.current = (data ?? []).map((p) => p.id);
-        reloadLogs();
+        reloadAll();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [party, reloadLogs]);
+  }, [party, reloadAll]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0d1b2a]">
-        <p className="text-white/40 text-2xl font-bold tracking-widest animate-pulse">BOOZEBOARD</p>
+      <div
+        className="flex items-center justify-center min-h-screen"
+        style={{ background: "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)" }}
+      >
+        <p className="text-white/40 text-3xl font-black tracking-widest animate-pulse">BOOZEBOARD</p>
       </div>
     );
   }
 
-  const maxDrinks = Math.max(...stats.map((s) => s.totalDrinks), 1);
   const totalDrinks = stats.reduce((s, p) => s + p.totalDrinks, 0);
   const totalUnits = stats.reduce((s, p) => s + p.totalUnits, 0);
-  const now = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const totalVomits = vomitEntries.length;
+
+  // Podium order: [2nd, 1st, 3rd]
+  const first = stats[0] ?? null;
+  const second = stats[1] ?? null;
+  const third = stats[2] ?? null;
+  const rest = stats.slice(3);
 
   return (
     <div
       className="min-h-screen w-full flex flex-col select-none overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #0d1b2a 0%, #1a2744 60%, #0d1b2a 100%)" }}
+      style={{ background: "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)" }}
     >
-      {/* Header */}
-      <header className="flex items-center justify-between px-8 pt-6 pb-4">
-        <div className="flex items-center gap-4">
-          <div className="text-4xl font-black tracking-widest text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
-            🍻 <span className="bg-gradient-to-r from-amber-300 to-amber-500 bg-clip-text text-transparent">
-              BOOZEBOARD
+      {/* ── Header ── */}
+      <header className="flex items-center justify-between px-8 pt-5 pb-3 flex-shrink-0">
+        {/* Left: logo + party */}
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl font-black tracking-widest">
+              🍻 <span
+                className="bg-gradient-to-r from-violet-300 to-amber-300 bg-clip-text text-transparent"
+              >BOOZEBOARD</span>
             </span>
+            <div className="border border-white/20 rounded-lg px-2.5 py-0.5">
+              <span className="text-amber-400 font-mono font-bold tracking-widest text-base">{code}</span>
+            </div>
           </div>
-          <div className="border border-white/20 rounded-lg px-3 py-1">
-            <span className="text-amber-400 font-mono font-bold tracking-widest text-lg">{code}</span>
-          </div>
+          {party?.name && (
+            <p className="text-white/30 text-sm">
+              {party.name}{party.location ? ` · 📍 ${party.location}` : ""}
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-6 text-right">
+        {/* Right: global stats + live */}
+        <div className="flex items-center gap-6">
           <div className="text-center">
-            <p className="text-3xl font-black text-amber-400">{totalDrinks}</p>
-            <p className="text-white/40 text-xs uppercase tracking-wider">verres</p>
+            <p className="text-3xl font-black text-amber-300">{totalDrinks}</p>
+            <p className="text-white/30 text-xs uppercase tracking-wider">verres</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-black text-amber-400">{totalUnits.toFixed(1)}</p>
-            <p className="text-white/40 text-xs uppercase tracking-wider">unités</p>
+            <p className="text-3xl font-black text-amber-300">{totalUnits.toFixed(1)}</p>
+            <p className="text-white/30 text-xs uppercase tracking-wider">unités</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${pulse ? "bg-amber-300" : "bg-green-400"} transition-colors duration-200`} />
-            <span className="text-white/40 text-sm font-mono">{now}</span>
+          {totalVomits > 0 && (
+            <div className="text-center">
+              <p className="text-3xl font-black text-red-400">{totalVomits}</p>
+              <p className="text-white/30 text-xs uppercase tracking-wider">vomi{totalVomits > 1 ? "s" : ""}</p>
+            </div>
+          )}
+          <div className="flex items-center gap-2 pl-2 border-l border-white/10">
+            <div className={`w-2 h-2 rounded-full ${pulse ? "bg-amber-300" : "bg-emerald-400"} transition-colors duration-300`} />
+            <span className="text-white/30 text-sm font-mono">{clock}</span>
           </div>
         </div>
       </header>
 
-      {/* Subtitle */}
-      {party?.name && (
-        <p className="px-8 text-white/30 text-sm font-medium tracking-wide mb-2">
-          {party.name}{party.location ? ` · 📍 ${party.location}` : ""}
-        </p>
-      )}
-
-      {/* Leaderboard */}
-      <div className="flex-1 px-8 pb-6 flex flex-col gap-3">
+      {/* ── Main content ── */}
+      <div className="flex-1 flex flex-col overflow-hidden px-8 gap-4 pb-2">
         {stats.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center space-y-3">
-              <p className="text-7xl">🫗</p>
-              <p className="text-white/30 text-2xl font-bold">En attente de consommations...</p>
-              <p className="text-white/20 text-base">Rejoins sur <span className="text-amber-400 font-mono">{code}</span></p>
+            <div className="text-center space-y-4">
+              <p className="text-8xl">🫗</p>
+              <p className="text-white/30 text-3xl font-black">En attente de consommations...</p>
+              <p className="text-white/20 text-lg">
+                Rejoins sur <span className="text-amber-400 font-mono">{code}</span>
+              </p>
             </div>
           </div>
         ) : (
-          <AnimatePresence mode="popLayout">
-            {stats.map((s, i) => {
-              const isTop3 = i < 3;
-              const barPct = maxDrinks > 0 ? (s.totalDrinks / maxDrinks) * 100 : 0;
+          <>
+            {/* ── Podium (top 3) ── */}
+            {first && (
+              <div className="flex items-end justify-center gap-6 flex-shrink-0">
+                {second && <div className="w-48"><PodiumSlot stats={second} rank={2} /></div>}
+                <div className="w-56"><PodiumSlot stats={first} rank={1} /></div>
+                {third && <div className="w-44"><PodiumSlot stats={third} rank={3} /></div>}
+              </div>
+            )}
 
-              return (
-                <motion.div
-                  key={s.participant.id}
-                  layout
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{
-                    layout: { type: "spring", stiffness: 350, damping: 30 },
-                    opacity: { duration: 0.2 },
-                  }}
-                  className={`
-                    flex items-center gap-5 rounded-2xl border px-6 py-4 shadow-lg backdrop-blur-sm
-                    ${isTop3 ? ROW_STYLES[i] : "border-white/10 bg-white/5"}
-                  `}
+            {/* ── Full ranked list (all players) ── */}
+            {stats.length > 1 && (
+              <div className="flex-1 overflow-hidden">
+                <div
+                  className="rounded-2xl border border-white/10 overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)" }}
                 >
-                  {/* Rank */}
-                  <div className="w-16 text-center flex-shrink-0">
-                    {isTop3 ? (
-                      <span className="text-4xl">{MEDALS[i]}</span>
-                    ) : (
-                      <span className="text-2xl font-black text-white/30">#{i + 1}</span>
-                    )}
+                  {/* List header */}
+                  <div className="grid grid-cols-[3rem_3.5rem_1fr_5rem_6rem_5rem] gap-2 px-5 py-2 border-b border-white/10">
+                    <p className="text-white/20 text-xs uppercase tracking-wider font-bold">#</p>
+                    <p className="text-white/20 text-xs uppercase tracking-wider font-bold"></p>
+                    <p className="text-white/20 text-xs uppercase tracking-wider font-bold">Nom</p>
+                    <p className="text-white/20 text-xs uppercase tracking-wider font-bold text-right">Verres</p>
+                    <p className="text-white/20 text-xs uppercase tracking-wider font-bold text-right">Unités</p>
+                    <p className="text-white/20 text-xs uppercase tracking-wider font-bold text-right">Alcoolémie</p>
                   </div>
 
-                  {/* Avatar emoji */}
-                  <div className={`
-                    w-16 h-16 rounded-full flex items-center justify-center text-4xl flex-shrink-0
-                    ${isTop3 ? "bg-white/15 border border-white/20" : "bg-white/5"}
-                  `}>
-                    {s.participant.emoji ?? "🍺"}
-                  </div>
+                  {/* Rows */}
+                  <AnimatePresence mode="popLayout">
+                    {stats.map((s, i) => {
+                      const rankColors = [
+                        "text-amber-300",
+                        "text-zinc-300",
+                        "text-amber-700",
+                      ];
+                      const rowBg = i === 0
+                        ? "bg-amber-400/5 border-b border-amber-400/10"
+                        : i === 1
+                          ? "bg-zinc-400/5 border-b border-white/5"
+                          : "border-b border-white/5";
 
-                  {/* Name + bar */}
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <p className={`font-black truncate leading-tight ${isTop3 ? "text-3xl text-white" : "text-2xl text-white/80"}`}>
-                      {s.participant.name}
-                    </p>
-                    {/* Progress bar */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden">
+                      return (
                         <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${barPct}%` }}
-                          transition={{ duration: 0.8, ease: "easeOut" }}
-                        />
-                      </div>
-                      <span className="text-white/30 text-sm flex-shrink-0">
-                        {s.totalDrinks} verre{s.totalDrinks > 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  </div>
+                          key={s.participant.id}
+                          layout
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ layout: { type: "spring", stiffness: 400, damping: 35 } }}
+                          className={`grid grid-cols-[3rem_3.5rem_1fr_5rem_6rem_5rem] gap-2 px-5 py-2.5 items-center ${rowBg}`}
+                        >
+                          {/* Rank */}
+                          <span className={`font-black text-xl ${rankColors[i] ?? "text-white/25"}`}>
+                            #{i + 1}
+                          </span>
 
-                  {/* Stats */}
-                  <div className="flex items-center gap-6 flex-shrink-0 text-right">
-                    {s.bac !== null && (
-                      <div>
-                        <p className="text-xl font-bold" style={{ color: bacColor(s.bac) }}>
-                          {s.bac.toFixed(2)}
-                        </p>
-                        <p className="text-white/30 text-xs">g/L</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className={`font-black ${isTop3 ? "text-4xl text-amber-300" : "text-3xl text-amber-400/80"}`}>
-                        {s.totalUnits.toFixed(1)}
-                      </p>
-                      <p className="text-white/30 text-xs uppercase tracking-wide">unités</p>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                          {/* Avatar */}
+                          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-2xl border border-white/10">
+                            {s.participant.emoji ?? "🍺"}
+                          </div>
+
+                          {/* Name + vomit badge */}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`font-black truncate ${i < 3 ? "text-white text-xl" : "text-white/70 text-lg"}`}>
+                              {s.participant.name}
+                            </span>
+                            {s.vomitCount > 0 && (
+                              <span className="flex-shrink-0 bg-red-950/60 border border-red-900/50 text-red-400 text-xs font-bold px-1.5 py-0.5 rounded-lg">
+                                🤮×{s.vomitCount}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Verres */}
+                          <div className="text-right">
+                            <span className="text-white/60 font-bold text-lg">{s.totalDrinks}</span>
+                            <span className="text-white/20 text-sm ml-1">🍺</span>
+                          </div>
+
+                          {/* Units */}
+                          <div className="text-right">
+                            <span className={`font-black text-xl ${i === 0 ? "text-amber-300" : "text-white/80"}`}>
+                              {s.totalUnits.toFixed(1)}
+                            </span>
+                            <span className="text-white/20 text-sm ml-1">u</span>
+                          </div>
+
+                          {/* BAC */}
+                          <div className="text-right">
+                            {s.bac !== null ? (
+                              <span className="font-bold text-base" style={{ color: bacColor(s.bac) }}>
+                                {s.bac.toFixed(2)} g/L
+                              </span>
+                            ) : (
+                              <span className="text-white/15 text-sm">—</span>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="px-8 pb-4 flex items-center justify-between text-white/20 text-xs">
-        <span>boozeboard.sl-information.fr · rejoindre : <span className="text-amber-400/50 font-mono">{code}</span></span>
-        <span>⚠️ Alcoolémies estimées — indicatif uniquement — ne conduisez pas</span>
+      {/* ── Vomit Strip ── */}
+      <VomitStrip entries={vomitEntries} />
+
+      {/* ── Footer ── */}
+      <footer className="px-8 py-2 flex items-center justify-between text-white/15 text-xs flex-shrink-0">
+        <span>boozeboard.sl-information.fr · {code}</span>
+        <span>⚠️ Alcoolémies estimées — ne conduisez pas</span>
       </footer>
     </div>
   );
