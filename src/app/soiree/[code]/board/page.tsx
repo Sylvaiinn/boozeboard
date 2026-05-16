@@ -237,10 +237,8 @@ function DrinkPieChart({
             ]}
           />
           <Legend
-            formatter={(value, entry) => (
-              <span className="text-zinc-400 text-xs">
-                {(entry as { payload?: { emoji?: string } }).payload?.emoji} {value}
-              </span>
+            formatter={(value) => (
+              <span style={{ color: "#a1a1aa", fontSize: "12px" }}>{value}</span>
             )}
           />
         </PieChart>
