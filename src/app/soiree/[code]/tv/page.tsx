@@ -152,28 +152,30 @@ interface VomitEntry {
 function VomitStrip({ entries }: { entries: VomitEntry[] }) {
   if (entries.length === 0) return null;
   return (
-    <div className="border-t border-white/10 px-8 py-3 flex items-center gap-5 overflow-x-hidden flex-shrink-0">
-      <div className="flex-shrink-0 space-y-0.5">
-        <p className="text-white/25 text-xs font-black uppercase tracking-widest">🤮 Hall of</p>
-        <p className="text-white/25 text-xs font-black uppercase tracking-widest">Shame</p>
+    <div className="border-t border-white/10 px-8 py-4 flex items-center gap-6 overflow-x-hidden flex-shrink-0">
+      <div className="flex-shrink-0 space-y-0.5 w-16">
+        <p className="text-white/25 text-[11px] font-black uppercase tracking-widest leading-tight">🤮 Hall</p>
+        <p className="text-white/25 text-[11px] font-black uppercase tracking-widest leading-tight">of Shame</p>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-0.5">
+      <div className="flex gap-4 overflow-x-auto">
         {entries.map((e) => (
           <motion.div
             key={e.log.id}
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex-shrink-0 flex flex-col items-center gap-1.5"
+            className="flex-shrink-0 flex flex-col items-center gap-2"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={e.log.photo_url}
               alt="Preuve"
-              className="w-24 h-20 rounded-xl object-cover border-2 border-red-900/50 shadow-lg shadow-red-950/40"
+              className="w-44 h-36 rounded-2xl object-cover border-2 border-red-800/60 shadow-xl shadow-red-950/50"
             />
             <div className="text-center">
-              <p className="text-white/70 text-xs font-bold leading-tight">{e.participant.emoji} {e.participant.name}</p>
-              <p className="text-red-400/50 text-[10px]">
+              <p className="text-white/75 text-sm font-bold leading-tight">
+                {e.participant.emoji} {e.participant.name}
+              </p>
+              <p className="text-red-400/50 text-xs">
                 {new Date(e.log.logged_at ?? "").toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>
