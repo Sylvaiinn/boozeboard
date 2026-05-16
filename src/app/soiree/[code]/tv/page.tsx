@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC } from "@/lib/utils";
+import { ParticipantAvatar } from "@/components/ParticipantAvatar";
 import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -106,10 +107,14 @@ function PodiumSlot({ stats: s, rank }: PodiumSlotProps) {
       {/* Avatar */}
       <div className={`
         ${avatarSizes[rank]} rounded-full flex items-center justify-center
-        border-2 backdrop-blur-sm
+        border-2 backdrop-blur-sm overflow-hidden
         ${podiumColors[rank]} ${glowColors[rank]}
       `}>
-        {s.participant.emoji ?? "🍺"}
+        <ParticipantAvatar
+          participant={s.participant}
+          size={rank === 1 ? "2xl" : rank === 2 ? "xl" : "lg"}
+          className="border-0"
+        />
       </div>
 
       {/* Name + score */}
@@ -412,9 +417,11 @@ export default function TvPage() {
                           </span>
 
                           {/* Avatar */}
-                          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-2xl border border-white/10">
-                            {s.participant.emoji ?? "🍺"}
-                          </div>
+                          <ParticipantAvatar
+                            participant={s.participant}
+                            size="md"
+                            className="bg-white/10 border border-white/10"
+                          />
 
                           {/* Name + vomit badge */}
                           <div className="flex items-center gap-2 min-w-0">

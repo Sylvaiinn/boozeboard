@@ -8,6 +8,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC, cn } from "@/lib/utils";
 import { BottomNav } from "@/components/BottomNav";
+import { ParticipantAvatar } from "@/components/ParticipantAvatar";
 import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,12 +124,12 @@ function ParticipantCard({ stats, rank }: { stats: ParticipantStats; rank: numbe
       )}
     >
       <div className="flex items-start gap-3">
-        {/* Rank + emoji */}
+        {/* Rank + avatar */}
         <div className="flex flex-col items-center gap-1 min-w-[48px]">
           <span className="text-2xl">
             {rank <= 3 ? RANK_MEDALS[rank - 1] : `#${rank}`}
           </span>
-          <span className="text-3xl">{p.emoji ?? "🍺"}</span>
+          <ParticipantAvatar participant={p} size="md" />
         </div>
 
         {/* Info */}

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { BottomNav } from "@/components/BottomNav";
+import { ParticipantAvatar } from "@/components/ParticipantAvatar";
 import type { Party, Participant, Drink, DrinkLog } from "@/types/database";
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ function TourneeModal({
                     : "bg-zinc-800 border-zinc-700 text-zinc-400"
                 )}
               >
-                <span>{p.emoji ?? "🍺"}</span>
+                <ParticipantAvatar participant={p} size="xs" />
                 <span>{p.name}</span>
               </button>
             ))}
@@ -311,7 +312,7 @@ function VomitModal({
                     : "bg-zinc-800 border-zinc-700 text-zinc-300"
                 )}
               >
-                <span className="text-2xl">{p.emoji ?? "🍺"}</span>
+                <ParticipantAvatar participant={p} size="sm" />
                 <span className="text-xs font-bold truncate max-w-[60px]">{p.name}</span>
               </button>
             ))}
@@ -525,7 +526,7 @@ export default function LogPage() {
                       : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600"
                   )}
                 >
-                  <span className="text-2xl">{p.emoji ?? "🍺"}</span>
+                  <ParticipantAvatar participant={p} size="sm" />
                   <span className="text-xs font-bold truncate max-w-[68px]">{p.name}</span>
                 </button>
               ))}

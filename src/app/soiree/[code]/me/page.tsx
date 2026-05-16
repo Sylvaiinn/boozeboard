@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/BottomNav";
+import { ParticipantAvatar } from "@/components/ParticipantAvatar";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC, cn } from "@/lib/utils";
 import type { Party, Participant, Drink, DrinkLog } from "@/types/database";
@@ -210,7 +211,7 @@ export default function MePage() {
                     : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600"
                 )}
               >
-                <span className="text-2xl">{p.emoji ?? "🍺"}</span>
+                <ParticipantAvatar participant={p} size="sm" />
                 <span className="text-xs font-bold truncate max-w-[68px]">{p.name}</span>
               </button>
             ))}

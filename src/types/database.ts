@@ -100,6 +100,7 @@ export type Database = {
           joined_at: string | null
           name: string
           party_id: string
+          photo_url: string | null
           sex: string | null
           weight_kg: number | null
         }
@@ -110,6 +111,7 @@ export type Database = {
           joined_at?: string | null
           name: string
           party_id: string
+          photo_url?: string | null
           sex?: string | null
           weight_kg?: number | null
         }
@@ -120,6 +122,7 @@ export type Database = {
           joined_at?: string | null
           name?: string
           party_id?: string
+          photo_url?: string | null
           sex?: string | null
           weight_kg?: number | null
         }

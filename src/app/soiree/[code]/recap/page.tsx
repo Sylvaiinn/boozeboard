@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/BottomNav";
+import { ParticipantAvatar } from "@/components/ParticipantAvatar";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC } from "@/lib/utils";
 import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
@@ -394,7 +395,7 @@ export default function RecapPage() {
                   return (
                     <div key={s.participant.id} className="flex items-center gap-3 bg-zinc-800 rounded-xl px-3 py-2.5">
                       <span className="text-xl w-7 text-center">{medals[i]}</span>
-                      <span className="text-xl">{s.participant.emoji ?? "🍺"}</span>
+                      <ParticipantAvatar participant={s.participant} size="sm" />
                       <span className="font-bold text-white flex-1 truncate">{s.participant.name}</span>
                       {s.vomitCount > 0 && (
                         <span className="text-red-400 text-xs font-bold">🤮×{s.vomitCount}</span>
@@ -447,7 +448,7 @@ export default function RecapPage() {
               {stats.map((s, i) => (
                 <div key={s.participant.id} className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
                   <span className="text-zinc-500 font-mono text-sm w-6 text-center">#{i + 1}</span>
-                  <span className="text-2xl">{s.participant.emoji ?? "🍺"}</span>
+                  <ParticipantAvatar participant={s.participant} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-white truncate">{s.participant.name}</p>
                     <p className="text-xs text-zinc-500">
