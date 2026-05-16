@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env*
+!.env.example
+node_modules
+.next
+README.md
+supabase/
+k8s/
+.github/

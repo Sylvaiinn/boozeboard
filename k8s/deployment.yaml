@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: boozeboard
+  namespace: boozeboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: boozeboard
+  template:
+    metadata:
+      labels:
+        app: boozeboard
+    spec:
+      containers:
+        - name: boozeboard
+          image: ghcr.io/sylvaiinn/boozeboard:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: boozeboard-secrets
+                  key: NEXT_PUBLIC_SUPABASE_URL
+            - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: boozeboard-secrets
+                  key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
