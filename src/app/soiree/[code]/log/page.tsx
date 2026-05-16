@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -163,7 +163,6 @@ function TourneeModal({
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
         </div>
 
-        {/* Participants */}
         <div className="space-y-2">
           <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Pour qui ?</p>
           <div className="flex flex-wrap gap-2">
@@ -185,7 +184,6 @@ function TourneeModal({
           </div>
         </div>
 
-        {/* Drink selector */}
         <div className="space-y-2">
           <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Quelle boisson ?</p>
           <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
@@ -221,6 +219,162 @@ function TourneeModal({
   );
 }
 
+// ─── VomitModal ───────────────────────────────────────────────────────────────
+
+function VomitModal({
+  participants,
+  onClose,
+  showToast,
+}: {
+  participants: Participant[];
+  onClose: () => void;
+  showToast: (msg: string, type?: "success" | "error") => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string>(participants[0]?.id ?? "");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleConfirm() {
+    if (!photoFile || !selectedId) return;
+    setSaving(true);
+    if (typeof navigator !== "undefined") navigator.vibrate?.([100, 50, 100]);
+
+    // Upload photo to Supabase Storage
+    const ext = photoFile.name.split(".").pop() ?? "jpg";
+    const path = `${selectedId}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("vomit-proofs")
+      .upload(path, photoFile, { contentType: photoFile.type, upsert: false });
+
+    if (uploadError) {
+      showToast("Erreur upload photo", "error");
+      setSaving(false);
+      return;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage.from("vomit-proofs").getPublicUrl(path);
+    const photoUrl = urlData.publicUrl;
+
+    // Insert vomit_log
+    const { error: insertError } = await supabase
+      .from("vomit_logs")
+      .insert({ participant_id: selectedId, photo_url: photoUrl });
+
+    if (insertError) {
+      showToast("Erreur enregistrement", "error");
+    } else {
+      const p = participants.find((p) => p.id === selectedId);
+      showToast(`🤮 ${p?.name ?? "Quelqu'un"} a vomi. Bravo.`);
+      onClose();
+    }
+    setSaving(false);
+  }
+
+  const selected = participants.find((p) => p.id === selectedId);
+
+  return (
+    <div className="fixed inset-0 bg-black/85 z-50 flex items-end" onClick={onClose}>
+      <div
+        className="w-full bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="font-black text-white text-lg">🤮 Logger un vomi</h2>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+
+        {/* Participant selector */}
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Qui a vomi ?</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-6 px-6">
+            {participants.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedId(p.id)}
+                className={cn(
+                  "flex flex-col items-center gap-1 min-w-[64px] py-2.5 px-2 rounded-xl border transition-all flex-shrink-0 active:scale-95",
+                  selectedId === p.id
+                    ? "bg-red-500 border-red-400 text-white"
+                    : "bg-zinc-800 border-zinc-700 text-zinc-300"
+                )}
+              >
+                <span className="text-2xl">{p.emoji ?? "🍺"}</span>
+                <span className="text-xs font-bold truncate max-w-[60px]">{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Photo obligatoire */}
+        <div className="space-y-3">
+          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">
+            Preuve photo <span className="text-red-400 normal-case tracking-normal font-normal ml-1">— obligatoire</span>
+          </p>
+
+          {preview ? (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={preview}
+                alt="Preuve"
+                className="w-full max-h-52 object-cover rounded-2xl border border-zinc-700"
+              />
+              <button
+                onClick={() => { setPhotoFile(null); setPreview(null); if (fileRef.current) fileRef.current.value = ""; }}
+                className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="w-full h-36 border-2 border-dashed border-zinc-700 hover:border-red-500 rounded-2xl flex flex-col items-center justify-center gap-2 text-zinc-500 hover:text-red-400 transition-colors active:scale-95"
+            >
+              <span className="text-4xl">📸</span>
+              <span className="text-sm font-semibold">Prendre la photo</span>
+              <span className="text-xs text-zinc-600">Obligatoire pour valider</span>
+            </button>
+          )}
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFile}
+            className="hidden"
+          />
+        </div>
+
+        <Button
+          onClick={handleConfirm}
+          disabled={!photoFile || !selectedId || saving}
+          className="w-full h-14 text-base font-black bg-red-600 hover:bg-red-500 text-white border-0"
+        >
+          {saving
+            ? "Enregistrement..."
+            : photoFile
+              ? `🤮 Confirmer — ${selected?.emoji ?? ""} ${selected?.name ?? ""}`
+              : "📸 Photo requise pour confirmer"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LogPage() {
@@ -235,6 +389,7 @@ export default function LogPage() {
   const [toast, setToast] = useState<ToastState>(null);
   const [showAddDrink, setShowAddDrink] = useState(false);
   const [showTournee, setShowTournee] = useState(false);
+  const [showVomit, setShowVomit] = useState(false);
   const [logging, setLogging] = useState(false);
 
   const showToast = useCallback(
@@ -323,6 +478,12 @@ export default function LogPage() {
             <span className="text-amber-400 font-mono text-xs tracking-widest">{code}</span>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => setShowVomit(true)}
+              className="text-xs bg-red-950 border border-red-900 text-red-400 font-bold rounded-lg px-3 py-2 hover:bg-red-900 transition-colors"
+            >
+              🤮 Vomi
+            </button>
             <button
               onClick={() => setShowTournee(true)}
               className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold rounded-lg px-3 py-2 hover:bg-zinc-700 transition-colors"
@@ -465,6 +626,14 @@ export default function LogPage() {
           drinks={drinks}
           onClose={() => setShowTournee(false)}
           onDone={() => setShowTournee(false)}
+          showToast={showToast}
+        />
+      )}
+
+      {showVomit && (
+        <VomitModal
+          participants={participants}
+          onClose={() => setShowVomit(false)}
           showToast={showToast}
         />
       )}

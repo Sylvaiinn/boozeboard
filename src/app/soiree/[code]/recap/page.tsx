@@ -283,15 +283,30 @@ export default function RecapPage() {
     if (!shareRef.current) return;
     setExporting(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { toPng } = await import("html-to-image" as any);
-      const dataUrl = await toPng(shareRef.current, { pixelRatio: 2, cacheBust: true });
+      // @ts-ignore
+      const htmlToImage = await import("html-to-image");
+      // Two attempts: first with skipFonts (fast), fallback without
+      let dataUrl: string;
+      try {
+        dataUrl = await htmlToImage.toPng(shareRef.current, {
+          pixelRatio: 2,
+          skipFonts: true,
+          filter: (node: Node) => {
+            // skip script/style nodes that can cause cross-origin issues
+            const tag = (node as Element).tagName;
+            return tag !== "SCRIPT" && tag !== "LINK";
+          },
+        });
+      } catch {
+        dataUrl = await htmlToImage.toPng(shareRef.current, { pixelRatio: 1, skipFonts: true });
+      }
       const link = document.createElement("a");
       link.download = `boozeboard-${code}.png`;
       link.href = dataUrl;
       link.click();
-    } catch {
-      showToast("Erreur lors de l'export.");
+      showToast("Image exportée !");
+    } catch (err) {
+      showToast(`Export impossible : ${err instanceof Error ? err.message : "erreur inconnue"}`);
     }
     setExporting(false);
   }

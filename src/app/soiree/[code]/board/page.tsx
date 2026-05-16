@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC, cn } from "@/lib/utils";
-import type { Party, Participant, Drink, DrinkLog } from "@/types/database";
+import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +19,7 @@ interface ParticipantStats {
   bac: number | null;
   favoriteDrink: Drink | null;
   logsLastHour: number;
+  vomitCount: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -26,7 +27,8 @@ interface ParticipantStats {
 function computeStats(
   participants: Participant[],
   drinksMap: Map<string, Drink>,
-  logs: DrinkLog[]
+  logs: DrinkLog[],
+  vomitLogs: VomitLog[] = []
 ): ParticipantStats[] {
   const now = Date.now();
   const oneHourAgo = now - 60 * 60 * 1000;
@@ -73,6 +75,8 @@ function computeStats(
         );
       }
 
+      const vomitCount = vomitLogs.filter((v) => v.participant_id === p.id).length;
+
       return {
         participant: p,
         totalDrinks: pLogs.length,
@@ -81,6 +85,7 @@ function computeStats(
         bac,
         favoriteDrink,
         logsLastHour,
+        vomitCount,
       };
     })
     .sort((a, b) => b.totalUnits - a.totalUnits || b.totalDrinks - a.totalDrinks);
@@ -104,7 +109,7 @@ const PIE_COLORS = ["#f59e0b", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6", "#f97
 // ─── ParticipantCard ──────────────────────────────────────────────────────────
 
 function ParticipantCard({ stats, rank }: { stats: ParticipantStats; rank: number }) {
-  const { participant: p, totalDrinks, totalUnits, bac, favoriteDrink, logsLastHour } = stats;
+  const { participant: p, totalDrinks, totalUnits, bac, favoriteDrink, logsLastHour, vomitCount } = stats;
   const isTop3 = rank <= 3;
 
   return (
@@ -160,6 +165,11 @@ function ParticipantCard({ stats, rank }: { stats: ParticipantStats; rank: numbe
             {favoriteDrink && (
               <span className="text-zinc-500">
                 {favoriteDrink.emoji ?? "🍺"} {favoriteDrink.name}
+              </span>
+            )}
+            {vomitCount > 0 && (
+              <span className="text-red-400 font-semibold">
+                🤮 ×{vomitCount}
               </span>
             )}
           </div>
@@ -269,6 +279,7 @@ export default function BoardPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [drinksMap, setDrinksMap] = useState<Map<string, Drink>>(new Map());
   const [logs, setLogs] = useState<DrinkLog[]>([]);
+  const [vomitLogs, setVomitLogs] = useState<VomitLog[]>([]);
   const [stats, setStats] = useState<ParticipantStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -277,12 +288,20 @@ export default function BoardPage() {
   // Reload logs from Supabase
   const reloadLogs = useCallback(async () => {
     if (!participantIds.current.length) return;
-    const { data } = await supabase
-      .from("drink_logs")
-      .select("*")
-      .in("participant_id", participantIds.current)
-      .order("logged_at");
-    setLogs(data ?? []);
+    const [{ data: drinkData }, { data: vomitData }] = await Promise.all([
+      supabase
+        .from("drink_logs")
+        .select("*")
+        .in("participant_id", participantIds.current)
+        .order("logged_at"),
+      supabase
+        .from("vomit_logs")
+        .select("*")
+        .in("participant_id", participantIds.current)
+        .order("logged_at"),
+    ]);
+    setLogs(drinkData ?? []);
+    setVomitLogs(vomitData ?? []);
     setLastUpdate(new Date());
   }, []);
 
@@ -318,12 +337,13 @@ export default function BoardPage() {
       participantIds.current = parts.map((p) => p.id);
 
       if (parts.length > 0) {
-        const { data: logsData } = await supabase
-          .from("drink_logs")
-          .select("*")
-          .in("participant_id", parts.map((p) => p.id))
-          .order("logged_at");
+        const ids = parts.map((p) => p.id);
+        const [{ data: logsData }, { data: vomitData }] = await Promise.all([
+          supabase.from("drink_logs").select("*").in("participant_id", ids).order("logged_at"),
+          supabase.from("vomit_logs").select("*").in("participant_id", ids).order("logged_at"),
+        ]);
         setLogs(logsData ?? []);
+        setVomitLogs(vomitData ?? []);
       }
 
       setLoading(false);
@@ -341,6 +361,11 @@ export default function BoardPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "drink_logs" },
+        () => { reloadLogs(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "vomit_logs" },
         () => { reloadLogs(); }
       )
       .on(
@@ -365,8 +390,8 @@ export default function BoardPage() {
 
   // Recompute stats when data changes
   useEffect(() => {
-    setStats(computeStats(participants, drinksMap, logs));
-  }, [participants, drinksMap, logs]);
+    setStats(computeStats(participants, drinksMap, logs, vomitLogs));
+  }, [participants, drinksMap, logs, vomitLogs]);
 
   if (loading) {
     return (
