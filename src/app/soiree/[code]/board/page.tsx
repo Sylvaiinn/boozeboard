@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC, cn } from "@/lib/utils";
 import type { Party, Participant, Drink, DrinkLog } from "@/types/database";
@@ -196,22 +196,26 @@ function DrinkPieChart({
     counts[drink.id].value++;
   }
 
-  const data = Object.values(counts).filter((d) => d.value > 0);
+  const data = Object.values(counts)
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value);
   if (data.length === 0) return null;
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-      <h3 className="font-bold text-zinc-300 text-sm uppercase tracking-wider mb-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+      <h3 className="font-bold text-zinc-300 text-sm uppercase tracking-wider">
         Répartition des boissons
       </h3>
-      <ResponsiveContainer width="100%" height={220}>
-        <PieChart>
+
+      {/* Donut chart — hauteur fixe, pas de légende intégrée */}
+      <ResponsiveContainer width="100%" height={180}>
+        <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={55}
-            outerRadius={85}
+            innerRadius={50}
+            outerRadius={80}
             paddingAngle={3}
             dataKey="value"
           >
@@ -231,18 +235,27 @@ function DrinkPieChart({
               color: "#fafafa",
               fontSize: "13px",
             }}
-            formatter={(value, name, props) => [
+            formatter={(value, name) => [
               `${value} verre${Number(value) > 1 ? "s" : ""}`,
-              `${props.payload.emoji} ${name}`,
+              name,
             ]}
-          />
-          <Legend
-            formatter={(value) => (
-              <span style={{ color: "#a1a1aa", fontSize: "12px" }}>{value}</span>
-            )}
           />
         </PieChart>
       </ResponsiveContainer>
+
+      {/* Légende HTML — wrap propre sur mobile */}
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        {data.map((item, i) => (
+          <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+            />
+            <span className="text-xs text-zinc-400 truncate">{item.name}</span>
+            <span className="text-xs text-zinc-600 flex-shrink-0">({item.value})</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
