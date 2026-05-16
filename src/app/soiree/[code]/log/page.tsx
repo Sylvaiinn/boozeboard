@@ -65,87 +65,157 @@ function AddDrinkModal({
       .select()
       .single();
 
-    if (!error && data) {
-      onAdded(data);
-    }
+    if (!error && data) onAdded(data);
     setSaving(false);
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/80 z-50 flex items-end"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-end" onClick={onClose}>
       <div
         className="w-full bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white text-lg">Boisson custom</h2>
-          <button
-            onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300 text-2xl w-8 h-8 flex items-center justify-center"
-          >
-            ✕
-          </button>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
         </div>
-
         <form onSubmit={handleSave} className="space-y-3">
           <EmojiPicker value={emoji} onChange={setEmoji} />
-
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nom de la boisson"
-            required
-            autoFocus
-            className="h-12"
-          />
-
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la boisson" required autoFocus className="h-12" />
           <div className="flex gap-3">
-            <Input
-              type="number"
-              value={volumeCl}
-              onChange={(e) => setVolumeCl(e.target.value)}
-              placeholder="Volume (cl)"
-              min="1"
-              max="500"
-              step="0.5"
-              required
-              className="h-12"
-            />
-            <Input
-              type="number"
-              value={alcoholPct}
-              onChange={(e) => setAlcoholPct(e.target.value)}
-              placeholder="Degré (%)"
-              min="0"
-              max="100"
-              step="0.1"
-              required
-              className="h-12"
-            />
+            <Input type="number" value={volumeCl} onChange={(e) => setVolumeCl(e.target.value)} placeholder="Volume (cl)" min="1" max="500" step="0.5" required className="h-12" />
+            <Input type="number" value={alcoholPct} onChange={(e) => setAlcoholPct(e.target.value)} placeholder="Degré (%)" min="0" max="100" step="0.1" required className="h-12" />
           </div>
-
           {volumeCl && alcoholPct !== "" && (
             <p className="text-xs text-zinc-500 text-center">
-              ≈{" "}
-              {calculateAlcoholUnits(
-                parseFloat(volumeCl),
-                parseFloat(alcoholPct)
-              ).toFixed(2)}{" "}
-              unité(s) d&apos;alcool
+              ≈ {calculateAlcoholUnits(parseFloat(volumeCl), parseFloat(alcoholPct)).toFixed(2)} unité(s)
             </p>
           )}
-
-          <Button
-            type="submit"
-            className="w-full h-12 font-bold"
-            disabled={saving}
-          >
+          <Button type="submit" className="w-full h-12 font-bold" disabled={saving}>
             {saving ? "Ajout..." : `${emoji} Ajouter`}
           </Button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── TourneeModal ─────────────────────────────────────────────────────────────
+
+function TourneeModal({
+  participants,
+  drinks,
+  onClose,
+  onDone,
+  showToast,
+}: {
+  participants: Participant[];
+  drinks: Drink[];
+  onClose: () => void;
+  onDone: () => void;
+  showToast: (msg: string, type?: "success" | "error") => void;
+}) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    new Set(participants.map((p) => p.id))
+  );
+  const [selectedDrink, setSelectedDrink] = useState<Drink | null>(drinks[0] ?? null);
+  const [saving, setSaving] = useState(false);
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    if (!selectedDrink || selectedIds.size === 0) return;
+    setSaving(true);
+    if (typeof navigator !== "undefined") navigator.vibrate?.(100);
+
+    const roundId = crypto.randomUUID();
+    const inserts = [...selectedIds].map((pid) => ({
+      participant_id: pid,
+      drink_id: selectedDrink.id,
+      round_id: roundId,
+    }));
+
+    const { error } = await supabase.from("drink_logs").insert(inserts);
+
+    if (error) {
+      showToast("Erreur lors de la tournée", "error");
+    } else {
+      showToast(`🍻 Tournée pour ${selectedIds.size} pote${selectedIds.size > 1 ? "s" : ""} !`);
+      onDone();
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-end" onClick={onClose}>
+      <div
+        className="w-full bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="font-black text-white text-lg">🍻 Tournée</h2>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+
+        {/* Participants */}
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Pour qui ?</p>
+          <div className="flex flex-wrap gap-2">
+            {participants.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => toggle(p.id)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all active:scale-95",
+                  selectedIds.has(p.id)
+                    ? "bg-amber-400 border-amber-300 text-zinc-900"
+                    : "bg-zinc-800 border-zinc-700 text-zinc-400"
+                )}
+              >
+                <span>{p.emoji ?? "🍺"}</span>
+                <span>{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Drink selector */}
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Quelle boisson ?</p>
+          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+            {drinks.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setSelectedDrink(d)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left",
+                  selectedDrink?.id === d.id
+                    ? "bg-amber-400 border-amber-300 text-zinc-900"
+                    : "bg-zinc-800 border-zinc-700 text-zinc-300"
+                )}
+              >
+                <span className="text-xl flex-shrink-0">{d.emoji ?? "🍺"}</span>
+                <span className="truncate">{d.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Button
+          onClick={handleSave}
+          className="w-full h-14 text-base font-black"
+          disabled={saving || selectedIds.size === 0 || !selectedDrink}
+        >
+          {saving
+            ? "En cours..."
+            : `🍻 Logger pour ${selectedIds.size} pote${selectedIds.size > 1 ? "s" : ""}`}
+        </Button>
       </div>
     </div>
   );
@@ -159,12 +229,12 @@ export default function LogPage() {
   const [party, setParty] = useState<Party | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [drinks, setDrinks] = useState<Drink[]>([]);
-  const [selectedParticipant, setSelectedParticipant] =
-    useState<Participant | null>(null);
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [lastLog, setLastLog] = useState<DrinkLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>(null);
   const [showAddDrink, setShowAddDrink] = useState(false);
+  const [showTournee, setShowTournee] = useState(false);
   const [logging, setLogging] = useState(false);
 
   const showToast = useCallback(
@@ -188,21 +258,9 @@ export default function LogPage() {
 
       const [{ data: participantsData }, { data: presetData }, { data: customData }] =
         await Promise.all([
-          supabase
-            .from("participants")
-            .select("*")
-            .eq("party_id", partyData.id)
-            .order("joined_at"),
-          supabase
-            .from("drinks")
-            .select("*")
-            .eq("is_preset", true)
-            .order("name"),
-          supabase
-            .from("drinks")
-            .select("*")
-            .eq("party_id", partyData.id)
-            .order("name"),
+          supabase.from("participants").select("*").eq("party_id", partyData.id).order("joined_at"),
+          supabase.from("drinks").select("*").eq("is_preset", true).order("name"),
+          supabase.from("drinks").select("*").eq("party_id", partyData.id).order("name"),
         ]);
 
       const allDrinks = [...(presetData ?? []), ...(customData ?? [])];
@@ -211,23 +269,17 @@ export default function LogPage() {
       if (participantsData?.length) setSelectedParticipant(participantsData[0]);
       setLoading(false);
     }
-
     load();
   }, [code]);
 
   async function logDrink(drink: Drink) {
     if (!selectedParticipant || logging) return;
     setLogging(true);
-
-    // Haptic feedback
     if (typeof navigator !== "undefined") navigator.vibrate?.(50);
 
     const { data, error } = await supabase
       .from("drink_logs")
-      .insert({
-        participant_id: selectedParticipant.id,
-        drink_id: drink.id,
-      })
+      .insert({ participant_id: selectedParticipant.id, drink_id: drink.id })
       .select()
       .single();
 
@@ -236,11 +288,11 @@ export default function LogPage() {
     } else {
       setLastLog(data);
       const units = calculateAlcoholUnits(drink.volume_cl, drink.alcohol_pct);
-      const unitStr =
+      showToast(
         drink.alcohol_pct === 0
-          ? "Sans alcool 💧"
-          : `${units.toFixed(1)} unité${units !== 1 ? "s" : ""}`;
-      showToast(`${drink.emoji ?? "🍺"} ${drink.name} — ${unitStr}`);
+          ? `${drink.emoji ?? "💧"} ${drink.name} — Sans alcool`
+          : `${drink.emoji ?? "🍺"} ${drink.name} — ${units.toFixed(1)} unité${units !== 1 ? "s" : ""}`
+      );
     }
     setLogging(false);
   }
@@ -267,29 +319,30 @@ export default function LogPage() {
       <header className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-black text-white text-base leading-tight">
-              {party?.name}
-            </h1>
-            <span className="text-amber-400 font-mono text-xs tracking-widest">
-              {code}
-            </span>
+            <h1 className="font-black text-white text-base leading-tight">{party?.name}</h1>
+            <span className="text-amber-400 font-mono text-xs tracking-widest">{code}</span>
           </div>
-          <Link
-            href={`/soiree/${code}/board`}
-            className="text-zinc-400 hover:text-white text-xs bg-zinc-800 hover:bg-zinc-700 rounded-lg px-3 py-2 transition-colors font-medium"
-          >
-            📺 Leaderboard
-          </Link>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowTournee(true)}
+              className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold rounded-lg px-3 py-2 hover:bg-zinc-700 transition-colors"
+            >
+              🍻 Tournée
+            </button>
+            <Link
+              href={`/soiree/${code}/board`}
+              className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-400 font-medium rounded-lg px-3 py-2 hover:bg-zinc-700 transition-colors"
+            >
+              📺
+            </Link>
+          </div>
         </div>
       </header>
 
       <div className="flex-1 space-y-6 px-4 pt-5">
         {/* Participant selector */}
         <section>
-          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3 font-semibold">
-            Qui boit ?
-          </p>
-
+          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3 font-semibold">Qui boit ?</p>
           {participants.length === 0 ? (
             <Link
               href={`/soiree/${code}/setup`}
@@ -311,9 +364,7 @@ export default function LogPage() {
                   )}
                 >
                   <span className="text-2xl">{p.emoji ?? "🍺"}</span>
-                  <span className="text-xs font-bold truncate max-w-[68px]">
-                    {p.name}
-                  </span>
+                  <span className="text-xs font-bold truncate max-w-[68px]">{p.name}</span>
                 </button>
               ))}
             </div>
@@ -324,17 +375,11 @@ export default function LogPage() {
         {selectedParticipant && (
           <section>
             <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3 font-semibold">
-              Que boit{" "}
-              <span className="text-amber-400">{selectedParticipant.name}</span>{" "}
-              ?
+              Que boit <span className="text-amber-400">{selectedParticipant.name}</span> ?
             </p>
-
             <div className="grid grid-cols-2 gap-3">
               {drinks.map((drink) => {
-                const units = calculateAlcoholUnits(
-                  drink.volume_cl,
-                  drink.alcohol_pct
-                );
+                const units = calculateAlcoholUnits(drink.volume_cl, drink.alcohol_pct);
                 const isSoft = drink.alcohol_pct === 0;
                 return (
                   <button
@@ -349,40 +394,28 @@ export default function LogPage() {
                     )}
                   >
                     <span className="text-4xl">{drink.emoji ?? "🍺"}</span>
-                    <span className="font-semibold text-white text-sm text-center leading-tight">
-                      {drink.name}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-xs font-medium",
-                        isSoft ? "text-blue-400" : "text-amber-500"
-                      )}
-                    >
+                    <span className="font-semibold text-white text-sm text-center leading-tight">{drink.name}</span>
+                    <span className={cn("text-xs font-medium", isSoft ? "text-blue-400" : "text-amber-500")}>
                       {isSoft ? "Sans alcool" : `${units.toFixed(1)} unité${units !== 1 ? "s" : ""}`}
                     </span>
                   </button>
                 );
               })}
-
-              {/* Bouton custom */}
               <button
                 onClick={() => setShowAddDrink(true)}
                 className="flex flex-col items-center gap-2 bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl py-5 px-3 active:scale-95 transition-all hover:border-amber-700"
               >
                 <span className="text-4xl">➕</span>
-                <span className="font-semibold text-zinc-500 text-sm">
-                  Autre boisson
-                </span>
+                <span className="font-semibold text-zinc-500 text-sm">Autre boisson</span>
               </button>
             </div>
           </section>
         )}
       </div>
 
-      {/* Toast */}
       <Toast toast={toast} />
 
-      {/* Undo button */}
+      {/* Undo */}
       {lastLog && (
         <div className="fixed bottom-[72px] left-4 right-4 z-40">
           <button
@@ -396,30 +429,24 @@ export default function LogPage() {
 
       {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur border-t border-zinc-800 flex z-30">
-        <Link
-          href={`/soiree/${code}/log`}
-          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-amber-400"
-        >
+        <Link href={`/soiree/${code}/log`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-amber-400">
           <span className="text-xl">🍺</span>
           <span className="text-xs font-semibold">Logger</span>
         </Link>
-        <Link
-          href={`/soiree/${code}/board`}
-          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
+        <Link href={`/soiree/${code}/board`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors">
           <span className="text-xl">🏆</span>
           <span className="text-xs font-medium">Board</span>
         </Link>
-        <Link
-          href={`/soiree/${code}/setup`}
-          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
+        <Link href={`/soiree/${code}/me`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors">
+          <span className="text-xl">👤</span>
+          <span className="text-xs font-medium">Moi</span>
+        </Link>
+        <Link href={`/soiree/${code}/setup`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors">
           <span className="text-xl">👥</span>
-          <span className="text-xs font-medium">Participants</span>
+          <span className="text-xs font-medium">Potes</span>
         </Link>
       </nav>
 
-      {/* Add custom drink modal */}
       {showAddDrink && party && (
         <AddDrinkModal
           partyId={party.id}
@@ -429,6 +456,16 @@ export default function LogPage() {
             setShowAddDrink(false);
             showToast(`${drink.emoji ?? "🍺"} ${drink.name} ajoutée !`);
           }}
+        />
+      )}
+
+      {showTournee && (
+        <TourneeModal
+          participants={participants}
+          drinks={drinks}
+          onClose={() => setShowTournee(false)}
+          onDone={() => setShowTournee(false)}
+          showToast={showToast}
         />
       )}
     </main>
