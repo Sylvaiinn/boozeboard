@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { BottomNav } from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC, cn } from "@/lib/utils";
 import type { Party, Participant, Drink, DrinkLog } from "@/types/database";
@@ -326,25 +327,7 @@ export default function MePage() {
         )}
       </div>
 
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur border-t border-zinc-800 flex z-30">
-        <Link href={`/soiree/${code}/log`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors">
-          <span className="text-xl">🍺</span>
-          <span className="text-xs font-medium">Logger</span>
-        </Link>
-        <Link href={`/soiree/${code}/board`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors">
-          <span className="text-xl">🏆</span>
-          <span className="text-xs font-medium">Board</span>
-        </Link>
-        <Link href={`/soiree/${code}/me`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-amber-400">
-          <span className="text-xl">👤</span>
-          <span className="text-xs font-semibold">Moi</span>
-        </Link>
-        <Link href={`/soiree/${code}/setup`} className="flex-1 flex flex-col items-center gap-0.5 py-3 text-zinc-500 hover:text-zinc-300 transition-colors">
-          <span className="text-xl">👥</span>
-          <span className="text-xs font-medium">Potes</span>
-        </Link>
-      </nav>
+      <BottomNav code={code} active="me" />
     </main>
   );
 }

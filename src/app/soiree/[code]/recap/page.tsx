@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { BottomNav } from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC } from "@/lib/utils";
 import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
@@ -332,7 +333,7 @@ export default function RecapPage() {
     : `${durationMin} min`;
 
   return (
-    <main className="min-h-screen bg-zinc-950 pb-28 px-4">
+    <main className="min-h-screen bg-zinc-950 pb-40 px-4">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 px-4 py-3 -mx-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
@@ -509,23 +510,24 @@ export default function RecapPage() {
         )}
       </div>
 
-      {/* Share buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur border-t border-zinc-800 px-4 py-3 flex gap-3 z-30">
+      {/* Share buttons — au-dessus de la nav */}
+      <div className="fixed bottom-[56px] left-0 right-0 bg-zinc-950/95 backdrop-blur border-t border-zinc-800 px-4 py-2.5 flex gap-3 z-20">
         <button
           onClick={handleShare}
           disabled={sharing}
-          className="flex-1 bg-amber-400 text-zinc-900 font-bold rounded-xl py-3.5 text-sm active:scale-95 transition-transform disabled:opacity-60"
+          className="flex-1 bg-amber-400 text-zinc-900 font-bold rounded-xl py-3 text-sm active:scale-95 transition-transform disabled:opacity-60"
         >
-          {sharing ? "Partage..." : "📤 Partager le lien"}
+          {sharing ? "Partage..." : "📤 Partager"}
         </button>
         <button
           onClick={handleExportImage}
           disabled={exporting}
-          className="flex-1 bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold rounded-xl py-3.5 text-sm active:scale-95 transition-transform disabled:opacity-60"
+          className="flex-1 bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold rounded-xl py-3 text-sm active:scale-95 transition-transform disabled:opacity-60"
         >
-          {exporting ? "Export..." : "🖼️ Exporter image"}
+          {exporting ? "Export..." : "🖼️ Image"}
         </button>
       </div>
+      <BottomNav code={code} active="recap" />
 
       {toast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-zinc-800 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl z-50 whitespace-nowrap">

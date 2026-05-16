@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { calculateAlcoholUnits, calculateBAC, cn } from "@/lib/utils";
+import { BottomNav } from "@/components/BottomNav";
 import type { Party, Participant, Drink, DrinkLog, VomitLog } from "@/types/database";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -405,7 +406,7 @@ export default function BoardPage() {
   const totalUnits = stats.reduce((s, p) => s + p.totalUnits, 0);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white pb-8">
+    <main className="min-h-screen bg-zinc-950 text-white pb-24">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 px-4 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
@@ -508,28 +509,8 @@ export default function BoardPage() {
           </div>
         )}
 
-        {/* Nav */}
-        <nav className="flex gap-3 pt-2">
-          <Link
-            href={`/soiree/${code}/log`}
-            className="flex-1 text-center bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded-xl py-3 text-sm font-medium transition-colors"
-          >
-            🍺 Logger
-          </Link>
-          <Link
-            href={`/soiree/${code}/setup`}
-            className="flex-1 text-center bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded-xl py-3 text-sm font-medium transition-colors"
-          >
-            👥 Participants
-          </Link>
-          <Link
-            href={`/soiree/${code}/recap`}
-            className="flex-1 text-center bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded-xl py-3 text-sm font-medium transition-colors"
-          >
-            🎉 Récap
-          </Link>
-        </nav>
       </div>
+      <BottomNav code={code} active="board" />
     </main>
   );
 }
