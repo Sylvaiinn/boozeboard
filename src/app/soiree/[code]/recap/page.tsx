@@ -283,7 +283,8 @@ export default function RecapPage() {
     if (!shareRef.current) return;
     setExporting(true);
     try {
-      const { toPng } = await import("html-to-image");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { toPng } = await import("html-to-image" as any);
       const dataUrl = await toPng(shareRef.current, { pixelRatio: 2, cacheBust: true });
       const link = document.createElement("a");
       link.download = `boozeboard-${code}.png`;

@@ -405,12 +405,21 @@ export default function BoardPage() {
 
           {/* Actions */}
           <div className="flex flex-col items-end gap-1.5">
-            <Link
-              href={`/soiree/${code}/log`}
-              className="text-xs bg-amber-400 text-zinc-900 font-bold rounded-lg px-3 py-1.5 hover:bg-amber-300 transition-colors"
-            >
-              🍺 Logger
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                href={`/soiree/${code}/tv`}
+                target="_blank"
+                className="text-xs bg-zinc-700 border border-zinc-600 text-zinc-200 font-bold rounded-lg px-3 py-1.5 hover:bg-zinc-600 transition-colors"
+              >
+                📺 TV
+              </Link>
+              <Link
+                href={`/soiree/${code}/log`}
+                className="text-xs bg-amber-400 text-zinc-900 font-bold rounded-lg px-3 py-1.5 hover:bg-amber-300 transition-colors"
+              >
+                🍺 Logger
+              </Link>
+            </div>
             <span className="text-zinc-600 text-xs">
               {lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </span>
