@@ -488,6 +488,12 @@ export default function BoardPage() {
           >
             👥 Participants
           </Link>
+          <Link
+            href={`/soiree/${code}/recap`}
+            className="flex-1 text-center bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded-xl py-3 text-sm font-medium transition-colors"
+          >
+            🎉 Récap
+          </Link>
         </nav>
       </div>
     </main>
